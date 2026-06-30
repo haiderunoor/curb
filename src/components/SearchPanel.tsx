@@ -115,10 +115,12 @@ function PlaceInput({
 
       let geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
         expanded
-      )}.json?access_token=${token}&bbox=-97.5,32.5,-96.3,33.1&limit=5&types=poi,address,neighborhood,place`;
+      )}.json?access_token=${token}&limit=5&types=poi,neighborhood,place,locality`;
 
       if (userLocation) {
         geocodeUrl += `&proximity=${userLocation.lon},${userLocation.lat}`;
+      } else {
+        geocodeUrl += `&proximity=-96.797,32.777`;
       }
 
       const [placesRes, stopsRes] = await Promise.allSettled([
