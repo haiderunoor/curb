@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadGtfsData } from "@/lib/gtfs/parser";
+import { loadGtfsDataAsync } from "@/lib/gtfs/parser";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get("q")?.toLowerCase() ?? "";
 
   try {
-    const gtfs = loadGtfsData();
+    const gtfs = await loadGtfsDataAsync();
     let stops = Array.from(gtfs.stops.values());
 
     if (query) {

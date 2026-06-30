@@ -10,12 +10,10 @@ import type {
   GtfsData,
 } from "./types";
 
-// Download DART's static GTFS zip from the DART developer portal
-// (dart.developer.azure-api.net) or dart.org/transitdata, and place it at:
-//   data/gtfs/dart-gtfs.zip
-// This parser unzips it in-memory and builds lookup tables for routing.
-
 const GTFS_ZIP_PATH = path.join(process.cwd(), "data/gtfs/dart-gtfs.zip");
+const GTFS_TMP_PATH = "/tmp/dart-gtfs.zip";
+const GTFS_REMOTE_URL =
+  "https://www.dart.org/transitdata/latest/google_transit.zip";
 
 function parseCsv<T>(zip: AdmZip, fileName: string): T[] {
   const entry = zip.getEntry(fileName);
@@ -30,17 +28,55 @@ function parseCsv<T>(zip: AdmZip, fileName: string): T[] {
 }
 
 let cachedData: GtfsData | null = null;
+let downloadPromise: Promise<void> | null = null;
+
+async function ensureGtfsZip(): Promise<string> {
+  if (fs.existsSync(GTFS_ZIP_PATH)) return GTFS_ZIP_PATH;
+  if (fs.existsSync(GTFS_TMP_PATH)) return GTFS_TMP_PATH;
+
+  if (!downloadPromise) {
+    downloadPromise = (async () => {
+      const res = await fetch(GTFS_REMOTE_URL);
+      if (!res.ok) {
+        throw new Error(
+          `Failed to download GTFS data from ${GTFS_REMOTE_URL}: ${res.status}`
+        );
+      }
+      const buffer = Buffer.from(await res.arrayBuffer());
+      fs.writeFileSync(GTFS_TMP_PATH, buffer);
+    })();
+  }
+
+  await downloadPromise;
+  return GTFS_TMP_PATH;
+}
+
+export async function loadGtfsDataAsync(): Promise<GtfsData> {
+  if (cachedData) return cachedData;
+  const zipPath = await ensureGtfsZip();
+  return parseGtfsZip(zipPath);
+}
 
 export function loadGtfsData(): GtfsData {
   if (cachedData) return cachedData;
 
-  if (!fs.existsSync(GTFS_ZIP_PATH)) {
+  let zipPath: string;
+  if (fs.existsSync(GTFS_ZIP_PATH)) {
+    zipPath = GTFS_ZIP_PATH;
+  } else if (fs.existsSync(GTFS_TMP_PATH)) {
+    zipPath = GTFS_TMP_PATH;
+  } else {
     throw new Error(
-      `GTFS zip not found at ${GTFS_ZIP_PATH}. Download it from the DART developer portal and place it there.`
+      "GTFS data not yet downloaded. Use loadGtfsDataAsync() or wait for initial download."
     );
   }
 
-  const zip = new AdmZip(GTFS_ZIP_PATH);
+  return parseGtfsZip(zipPath);
+}
+
+function parseGtfsZip(zipPath: string): GtfsData {
+  if (cachedData) return cachedData;
+  const zip = new AdmZip(zipPath);
 
   const rawStops = parseCsv<any>(zip, "stops.txt");
   const rawRoutes = parseCsv<any>(zip, "routes.txt");

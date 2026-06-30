@@ -75,11 +75,15 @@ export default function Home() {
         setLocating(false);
         if (err.code === err.PERMISSION_DENIED) {
           setError("Location access denied. Allow location in your browser settings.");
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setError("Location unavailable. Make sure location services are enabled on your device.");
+        } else if (err.code === err.TIMEOUT) {
+          setError("Location request timed out. Try again.");
         } else {
           setError("Could not determine your location.");
         }
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
     );
   }, []);
 

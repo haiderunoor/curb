@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadGtfsData } from "@/lib/gtfs/parser";
+import { loadGtfsDataAsync } from "@/lib/gtfs/parser";
 import { findFastestRoute } from "@/lib/routing/dijkstra";
 import { timeToSeconds } from "@/lib/routing/time";
 
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const gtfs = loadGtfsData();
+    const gtfs = await loadGtfsDataAsync();
 
     const departureSeconds = departureTime
       ? timeToSeconds(departureTime)
