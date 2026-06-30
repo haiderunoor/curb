@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import MapView from "@/components/MapView";
 import SearchPanel from "@/components/SearchPanel";
 import RouteResults from "@/components/RouteResults";
@@ -38,6 +38,21 @@ export default function Home() {
   const [locating, setLocating] = useState(false);
   const [locationLabel, setLocationLabel] = useState<string | undefined>();
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+
+  // Silently grab location on load for proximity-based search results
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
+        });
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  }, []);
 
   const handleUseLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -155,6 +170,7 @@ export default function Home() {
         onUseLocation={handleUseLocation}
         locating={locating}
         locationLabel={locationLabel}
+        userLocation={userLocation}
       />
 
       {error && (

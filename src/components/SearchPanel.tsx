@@ -61,6 +61,7 @@ interface SearchPanelProps {
   onUseLocation: () => void;
   locating: boolean;
   locationLabel?: string;
+  userLocation?: { lat: number; lon: number } | null;
 }
 
 function PlaceInput({
@@ -68,11 +69,13 @@ function PlaceInput({
   placeholder,
   onSelect,
   color,
+  userLocation,
 }: {
   label: string;
   placeholder: string;
   onSelect: (stop: Stop) => void;
   color: string;
+  userLocation?: { lat: number; lon: number } | null;
 }) {
   const [query, setQuery] = useState("");
   const [places, setPlaces] = useState<PlaceSuggestion[]>([]);
@@ -110,14 +113,16 @@ function PlaceInput({
       const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
       const expanded = expandAbbreviation(value);
 
+      let geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+        expanded
+      )}.json?access_token=${token}&bbox=-97.5,32.5,-96.3,33.1&limit=5&types=poi,address,neighborhood,place`;
+
+      if (userLocation) {
+        geocodeUrl += `&proximity=${userLocation.lon},${userLocation.lat}`;
+      }
+
       const [placesRes, stopsRes] = await Promise.allSettled([
-        token
-          ? fetch(
-              `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-                expanded
-              )}.json?access_token=${token}&bbox=-97.5,32.5,-96.3,33.1&limit=5&types=poi,address,neighborhood,place`
-            )
-          : Promise.resolve(null),
+        token ? fetch(geocodeUrl) : Promise.resolve(null),
         fetch(`/api/stops?q=${encodeURIComponent(value)}`),
       ]);
 
@@ -243,6 +248,7 @@ export default function SearchPanel({
   onUseLocation,
   locating,
   locationLabel,
+  userLocation,
 }: SearchPanelProps) {
   return (
     <div className="absolute top-4 left-4 z-10 w-80 bg-zinc-900/95 backdrop-blur-sm border border-zinc-800 rounded-xl shadow-2xl p-5">
@@ -266,12 +272,14 @@ export default function SearchPanel({
           placeholder="Search a place or stop..."
           onSelect={onOriginSelect}
           color="bg-green-500"
+          userLocation={userLocation}
         />
         <PlaceInput
           label="To"
           placeholder="Search a place or stop..."
           onSelect={onDestinationSelect}
           color="bg-red-500"
+          userLocation={userLocation}
         />
       </div>
 
