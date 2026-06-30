@@ -23,6 +23,7 @@ interface MapViewProps {
   destinationStop?: Stop | null;
   routeLegs?: RouteLeg[];
   allStops?: Stop[];
+  userLocation?: { lat: number; lon: number } | null;
 }
 
 export default function MapView({
@@ -30,10 +31,12 @@ export default function MapView({
   destinationStop,
   routeLegs,
   allStops,
+  userLocation,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -89,6 +92,36 @@ export default function MapView({
       map.current.fitBounds(bounds, { padding: 100 });
     }
   }, [originStop, destinationStop]);
+
+  useEffect(() => {
+    if (!map.current) return;
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
+      userMarkerRef.current = null;
+    }
+
+    if (userLocation) {
+      const el = document.createElement("div");
+      el.className = "user-location-dot";
+      el.style.width = "16px";
+      el.style.height = "16px";
+      el.style.borderRadius = "50%";
+      el.style.backgroundColor = "#3b82f6";
+      el.style.border = "3px solid #ffffff";
+      el.style.boxShadow = "0 0 8px rgba(59, 130, 246, 0.6)";
+
+      userMarkerRef.current = new mapboxgl.Marker({ element: el })
+        .setLngLat([userLocation.lon, userLocation.lat])
+        .setPopup(new mapboxgl.Popup().setText("You are here"))
+        .addTo(map.current);
+
+      map.current.flyTo({
+        center: [userLocation.lon, userLocation.lat],
+        zoom: 14,
+      });
+    }
+  }, [userLocation]);
 
   useEffect(() => {
     if (!map.current) return;

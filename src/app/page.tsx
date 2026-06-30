@@ -35,6 +35,53 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [allStops, setAllStops] = useState<Stop[]>([]);
   const [stopNames, setStopNames] = useState<Map<string, string>>(new Map());
+  const [locating, setLocating] = useState(false);
+  const [locationLabel, setLocationLabel] = useState<string | undefined>();
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+
+  const handleUseLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setLocating(true);
+    setError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ lat: latitude, lon: longitude });
+
+        try {
+          const res = await fetch(
+            `/api/stops/nearest?lat=${latitude}&lon=${longitude}`
+          );
+          if (res.ok) {
+            const stop = await res.json();
+            setOrigin(stop);
+            setLocationLabel(stop.stop_name);
+          } else {
+            const data = await res.json();
+            setError(data.error || "Could not find nearest stop.");
+          }
+        } catch {
+          setError("Failed to find nearest stop.");
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setError("Location access denied. Allow location in your browser settings.");
+        } else {
+          setError("Could not determine your location.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
 
   const handleSearch = useCallback(async () => {
     if (!origin || !destination) {
@@ -93,6 +140,7 @@ export default function Home() {
         destinationStop={destination}
         routeLegs={route?.legs}
         allStops={allStops}
+        userLocation={userLocation}
       />
 
       <SearchPanel
@@ -100,6 +148,9 @@ export default function Home() {
         onDestinationSelect={setDestination}
         onSearch={handleSearch}
         loading={loading}
+        onUseLocation={handleUseLocation}
+        locating={locating}
+        locationLabel={locationLabel}
       />
 
       {error && (

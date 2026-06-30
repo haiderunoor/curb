@@ -14,6 +14,9 @@ interface SearchPanelProps {
   onDestinationSelect: (stop: Stop) => void;
   onSearch: () => void;
   loading: boolean;
+  onUseLocation: () => void;
+  locating: boolean;
+  locationLabel?: string;
 }
 
 function StopInput({
@@ -115,11 +118,25 @@ export default function SearchPanel({
   onDestinationSelect,
   onSearch,
   loading,
+  onUseLocation,
+  locating,
+  locationLabel,
 }: SearchPanelProps) {
   return (
     <div className="absolute top-4 left-4 z-10 w-80 bg-zinc-900/95 backdrop-blur-sm border border-zinc-800 rounded-xl shadow-2xl p-5">
       <h1 className="text-xl font-bold text-zinc-100 mb-1">Curb</h1>
       <p className="text-xs text-zinc-500 mb-4">DART transit route planner</p>
+
+      <button
+        onClick={onUseLocation}
+        disabled={locating}
+        className="w-full mb-3 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 disabled:bg-zinc-800 disabled:text-zinc-500 border border-zinc-700 text-zinc-200 font-medium py-2 px-3 rounded-lg text-sm transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+          <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clipRule="evenodd" />
+        </svg>
+        {locating ? "Locating..." : locationLabel ? `Near: ${locationLabel}` : "Use my location"}
+      </button>
 
       <div className="space-y-3">
         <StopInput
