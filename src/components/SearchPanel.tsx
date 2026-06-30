@@ -9,6 +9,14 @@ interface Stop {
   stop_lon: number;
 }
 
+interface PlaceSuggestion {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lon: number;
+}
+
 interface SearchPanelProps {
   onOriginSelect: (stop: Stop) => void;
   onDestinationSelect: (stop: Stop) => void;
@@ -19,7 +27,7 @@ interface SearchPanelProps {
   locationLabel?: string;
 }
 
-function StopInput({
+function PlaceInput({
   label,
   placeholder,
   onSelect,
@@ -31,9 +39,10 @@ function StopInput({
   color: string;
 }) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Stop[]>([]);
+  const [places, setPlaces] = useState<PlaceSuggestion[]>([]);
+  const [stops, setStops] = useState<Stop[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selected, setSelected] = useState<Stop | null>(null);
+  const [searching, setSearching] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -49,35 +58,85 @@ function StopInput({
 
   function handleChange(value: string) {
     setQuery(value);
-    setSelected(null);
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
     if (value.length < 2) {
-      setResults([]);
+      setPlaces([]);
+      setStops([]);
       setShowDropdown(false);
       return;
     }
 
     timeoutRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/stops?q=${encodeURIComponent(value)}`);
-        if (res.ok) {
-          const stops = await res.json();
-          setResults(stops);
-          setShowDropdown(true);
+      setSearching(true);
+
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+      const [placesRes, stopsRes] = await Promise.allSettled([
+        token
+          ? fetch(
+              `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+                value
+              )}.json?access_token=${token}&bbox=-97.5,32.5,-96.3,33.1&limit=4&types=poi,address,neighborhood,place`
+            )
+          : Promise.resolve(null),
+        fetch(`/api/stops?q=${encodeURIComponent(value)}`),
+      ]);
+
+      const newPlaces: PlaceSuggestion[] = [];
+      if (placesRes.status === "fulfilled" && placesRes.value) {
+        const data = await placesRes.value.json();
+        if (data.features) {
+          for (const f of data.features) {
+            newPlaces.push({
+              id: f.id,
+              name: f.text,
+              address: f.place_name,
+              lat: f.center[1],
+              lon: f.center[0],
+            });
+          }
         }
-      } catch {
-        setResults([]);
       }
+
+      const newStops: Stop[] = [];
+      if (stopsRes.status === "fulfilled" && stopsRes.value.ok) {
+        const data = await stopsRes.value.json();
+        if (Array.isArray(data)) {
+          newStops.push(...data.slice(0, 4));
+        }
+      }
+
+      setPlaces(newPlaces);
+      setStops(newStops);
+      setShowDropdown(newPlaces.length > 0 || newStops.length > 0);
+      setSearching(false);
     }, 300);
   }
 
-  function handleSelect(stop: Stop) {
-    setSelected(stop);
+  function handleSelectStop(stop: Stop) {
     setQuery(stop.stop_name);
     setShowDropdown(false);
     onSelect(stop);
+  }
+
+  async function handleSelectPlace(place: PlaceSuggestion) {
+    setQuery(place.name);
+    setShowDropdown(false);
+
+    try {
+      const res = await fetch(
+        `/api/stops/nearest?lat=${place.lat}&lon=${place.lon}`
+      );
+      if (res.ok) {
+        const stop = await res.json();
+        onSelect(stop);
+        setQuery(`${place.name} (${stop.stop_name})`);
+      }
+    } catch {
+      // fallback: just use the place name
+    }
   }
 
   return (
@@ -86,27 +145,53 @@ function StopInput({
         {label}
       </label>
       <div className="mt-1 flex items-center gap-2">
-        <div className={`w-3 h-3 rounded-full ${color}`} />
+        <div className={`w-3 h-3 rounded-full shrink-0 ${color}`} />
         <input
           type="text"
           value={query}
           onChange={(e) => handleChange(e.target.value)}
-          onFocus={() => results.length > 0 && setShowDropdown(true)}
+          onFocus={() => (places.length > 0 || stops.length > 0) && setShowDropdown(true)}
           placeholder={placeholder}
           className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         />
       </div>
-      {showDropdown && results.length > 0 && (
-        <div className="absolute z-50 mt-1 ml-5 w-[calc(100%-1.25rem)] bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-          {results.map((stop) => (
-            <button
-              key={stop.stop_id}
-              onClick={() => handleSelect(stop)}
-              className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-700 first:rounded-t-lg last:rounded-b-lg transition-colors"
-            >
-              {stop.stop_name}
-            </button>
-          ))}
+      {showDropdown && (
+        <div className="absolute z-50 mt-1 ml-5 w-[calc(100%-1.25rem)] bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+          {places.length > 0 && (
+            <>
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-800/80 sticky top-0">
+                Places
+              </div>
+              {places.map((place) => (
+                <button
+                  key={place.id}
+                  onClick={() => handleSelectPlace(place)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-700 transition-colors"
+                >
+                  <span className="text-zinc-200">{place.name}</span>
+                  <span className="block text-xs text-zinc-500 truncate">
+                    {place.address}
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
+          {stops.length > 0 && (
+            <>
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-800/80 sticky top-0 border-t border-zinc-700">
+                DART Stops
+              </div>
+              {stops.map((stop) => (
+                <button
+                  key={stop.stop_id}
+                  onClick={() => handleSelectStop(stop)}
+                  className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors"
+                >
+                  {stop.stop_name}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -139,15 +224,15 @@ export default function SearchPanel({
       </button>
 
       <div className="space-y-3">
-        <StopInput
+        <PlaceInput
           label="From"
-          placeholder="Search origin stop..."
+          placeholder="Search a place or stop..."
           onSelect={onOriginSelect}
           color="bg-green-500"
         />
-        <StopInput
+        <PlaceInput
           label="To"
-          placeholder="Search destination stop..."
+          placeholder="Search a place or stop..."
           onSelect={onDestinationSelect}
           color="bg-red-500"
         />
