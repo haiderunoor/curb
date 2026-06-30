@@ -2,6 +2,42 @@
 
 import { useState, useEffect, useRef } from "react";
 
+const ABBREVIATIONS: Record<string, string> = {
+  utd: "University of Texas at Dallas",
+  uta: "University of Texas at Arlington",
+  smu: "Southern Methodist University",
+  dfw: "DFW Airport",
+  dart: "DART station Dallas",
+  dcc: "Dallas Convention Center",
+  bbt: "American Airlines Center Dallas",
+  aac: "American Airlines Center Dallas",
+  ntmh: "North Texas Medical Hospital",
+  utsw: "UT Southwestern Medical Center",
+  pfc: "Parkland Hospital Dallas",
+  tcc: "Tarrant County College",
+  el centro: "El Centro College Dallas",
+  richland: "Richland College Dallas",
+  northpark: "NorthPark Center Dallas",
+  galleria: "Galleria Dallas",
+  reunion: "Reunion Tower Dallas",
+  deep ellum: "Deep Ellum Dallas",
+  uptown: "Uptown Dallas",
+  bishop arts: "Bishop Arts District Dallas",
+  las colinas: "Las Colinas Irving",
+  legacy: "Legacy West Plano",
+  shops at legacy: "Shops at Legacy Plano",
+  mockingbird: "Mockingbird Station Dallas",
+  cityplace: "Cityplace/Uptown Station Dallas",
+  victory: "Victory Park Dallas",
+  cedars: "Cedars Station Dallas",
+};
+
+function expandAbbreviation(query: string): string {
+  const lower = query.toLowerCase().trim();
+  if (ABBREVIATIONS[lower]) return ABBREVIATIONS[lower];
+  return query;
+}
+
 interface Stop {
   stop_id: string;
   stop_name: string;
@@ -72,13 +108,14 @@ function PlaceInput({
       setSearching(true);
 
       const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      const expanded = expandAbbreviation(value);
 
       const [placesRes, stopsRes] = await Promise.allSettled([
         token
           ? fetch(
               `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-                value
-              )}.json?access_token=${token}&bbox=-97.5,32.5,-96.3,33.1&limit=4&types=poi,address,neighborhood,place`
+                expanded
+              )}.json?access_token=${token}&bbox=-97.5,32.5,-96.3,33.1&limit=5&types=poi,address,neighborhood,place`
             )
           : Promise.resolve(null),
         fetch(`/api/stops?q=${encodeURIComponent(value)}`),
