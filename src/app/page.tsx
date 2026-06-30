@@ -39,10 +39,10 @@ export default function Home() {
   const [locationLabel, setLocationLabel] = useState<string | undefined>();
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
 
-  // Silently grab location on load for proximity-based search results
+  // Grab location immediately and keep watching for updates
   useEffect(() => {
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
+    const watchId = navigator.geolocation.watchPosition(
       (position) => {
         setUserLocation({
           lat: position.coords.latitude,
@@ -50,11 +50,17 @@ export default function Home() {
         });
       },
       () => {},
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 600000 }
     );
+    return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  const handleUseLocation = useCallback(() => {
+  // Pre-warm the GTFS data so searches are instant
+  useEffect(() => {
+    fetch("/api/stops?q=a").catch(() => {});
+  }, []);
+
+  const handleUseLocation = useCallback(async () => {
     if (!navigator.geolocation) {
       setError("Geolocation is not supported by your browser.");
       return;
@@ -62,6 +68,28 @@ export default function Home() {
 
     setLocating(true);
     setError(null);
+
+    // Use cached location if available for instant response
+    if (userLocation) {
+      try {
+        const res = await fetch(
+          `/api/stops/nearest?lat=${userLocation.lat}&lon=${userLocation.lon}`
+        );
+        if (res.ok) {
+          const stop = await res.json();
+          setOrigin(stop);
+          setLocationLabel(stop.stop_name);
+        } else {
+          const data = await res.json();
+          setError(data.error || "Could not find nearest stop.");
+        }
+      } catch {
+        setError("Failed to find nearest stop.");
+      } finally {
+        setLocating(false);
+      }
+      return;
+    }
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -98,9 +126,9 @@ export default function Home() {
           setError("Could not determine your location.");
         }
       },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 600000 }
     );
-  }, []);
+  }, [userLocation]);
 
   const handleSearch = useCallback(async () => {
     if (!origin || !destination) {

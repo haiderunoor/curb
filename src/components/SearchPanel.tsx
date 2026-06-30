@@ -123,7 +123,7 @@ function PlaceInput({
 
       const [placesRes, stopsRes] = await Promise.allSettled([
         token ? fetch(geocodeUrl) : Promise.resolve(null),
-        fetch(`/api/stops?q=${encodeURIComponent(value)}`),
+        fetch(`/api/stops?q=${encodeURIComponent(value)}`, { cache: "force-cache" }),
       ]);
 
       const newPlaces: PlaceSuggestion[] = [];
@@ -154,7 +154,7 @@ function PlaceInput({
       setStops(newStops);
       setShowDropdown(newPlaces.length > 0 || newStops.length > 0);
       setSearching(false);
-    }, 300);
+    }, 100);
   }
 
   function handleSelectStop(stop: Stop) {
