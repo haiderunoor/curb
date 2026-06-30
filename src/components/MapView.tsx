@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -37,25 +37,37 @@ export default function MapView({
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
     if (!token || token === "your_mapbox_token_here") {
+      setMapError("No Mapbox token configured");
       return;
     }
 
     mapboxgl.accessToken = token;
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [-96.797, 32.777], // Downtown Dallas
-      zoom: 11,
-    });
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [-96.797, 32.777],
+        zoom: 11,
+      });
 
-    map.current.addControl(new mapboxgl.NavigationControl(), "bottom-right");
+      map.current.on("load", () => setMapLoaded(true));
+      map.current.on("error", (e) => {
+        setMapError(`Map error: ${e.error?.message || "Unknown error"}`);
+      });
+
+      map.current.addControl(new mapboxgl.NavigationControl(), "bottom-right");
+    } catch (err: any) {
+      setMapError(`Failed to initialize map: ${err.message}`);
+    }
 
     return () => {
       map.current?.remove();
@@ -178,21 +190,17 @@ export default function MapView({
     });
   }, [routeLegs, allStops]);
 
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  const hasToken = token && token !== "your_mapbox_token_here";
-
   return (
-    <div ref={mapContainer} className="absolute inset-0">
-      {!hasToken && (
+    <div className="absolute inset-0 w-full h-full">
+      <div ref={mapContainer} className="w-full h-full" />
+      {mapError && (
         <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
           <div className="text-center text-zinc-400 max-w-sm px-6">
             <div className="text-4xl mb-4">🗺️</div>
             <p className="text-lg font-medium text-zinc-200 mb-2">
               Map not configured
             </p>
-            <p className="text-sm">
-              Add your Mapbox token to <code className="text-indigo-400">.env.local</code> to see the map.
-            </p>
+            <p className="text-sm">{mapError}</p>
           </div>
         </div>
       )}
