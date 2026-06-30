@@ -115,7 +115,7 @@ function PlaceInput({
 
       let geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
         expanded
-      )}.json?access_token=${token}&limit=5&types=poi,neighborhood,place,locality`;
+      )}.json?access_token=${token}&limit=5&types=poi,neighborhood,place&bbox=-97.2,32.55,-96.4,33.15`;
 
       if (userLocation) {
         geocodeUrl += `&proximity=${userLocation.lon},${userLocation.lat}`;
